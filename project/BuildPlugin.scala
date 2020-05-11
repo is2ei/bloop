@@ -97,6 +97,7 @@ object BuildKeys {
   val createLocalScoopFormula = Def.taskKey[Unit]("Create local Scoop formula")
   val createLocalArchPackage = Def.taskKey[Unit]("Create local ArchLinux package build files")
   val bloopCoursierJson = Def.taskKey[File]("Generate a versioned install script")
+  val bloopLocalCoursierJson = Def.taskKey[File]("Generate a versioned install script")
   val releaseEarlyAllModules = Def.taskKey[Unit]("Release early all modules")
   val publishLocalAllModules = Def.taskKey[Unit]("Publish all modules locally")
 
@@ -138,8 +139,46 @@ object BuildKeys {
     },
     GHReleaseKeys.ghreleaseRepoOrg := "scalacenter",
     GHReleaseKeys.ghreleaseRepoName := "bloop",
-    GHReleaseKeys.ghreleaseAssets += ReleaseUtils.bloopCoursierJson.value,
-    GHReleaseKeys.ghreleaseAssets += Keys.target.value / "graalvm-binaries",
+    GHReleaseKeys.ghreleaseAssets ++= {
+      val baseDir = Keys.baseDirectory.in(ThisBuild).value
+      val releaseTargetDir = Keys.target.value / "ghrelease-assets"
+
+      // Windows is prebuilt manually, linux and macos are built by previous build jobs in GitHub Actions
+      val originBloopWindowsBinary = baseDir / "etc" / "bloopgun-windows-1.4.0.exe"
+      val originBloopLinuxBinary = Keys.target.value / "graalvm-binaries" / "bloop-linux"
+      val originBloopMacosBinary = Keys.target.value / "graalvm-binaries" / "bloop-macos"
+      val targetBloopLinuxBinary = releaseTargetDir / "bloop-x86_64-pc-linux"
+      val targetBloopWindowsBinary = releaseTargetDir / "bloop-x86_64-pc-win32.exe"
+      val targetBloopMacosBinary = releaseTargetDir / "bloop-x86_64-apple-darwin"
+      IO.copyFile(originBloopWindowsBinary, targetBloopWindowsBinary)
+      IO.copyFile(originBloopLinuxBinary, targetBloopLinuxBinary)
+      IO.copyFile(originBloopMacosBinary, targetBloopMacosBinary)
+
+      val originBashCompletions = baseDir / "etc" / "bash" / "bloop"
+      val originZshCompletions = baseDir / "etc" / "zsh" / "_bloop"
+      val originFishCompletions = baseDir / "etc" / "fish" / "bloop.fish"
+      val targetBashCompletions = releaseTargetDir / "bash-completions"
+      val targetZshCompletions = releaseTargetDir / "zsh-completions"
+      val targetFishCompletions = releaseTargetDir / "fish-completions"
+      IO.copyFile(originBashCompletions, targetBashCompletions)
+      IO.copyFile(originZshCompletions, targetZshCompletions)
+      IO.copyFile(originFishCompletions, targetFishCompletions)
+
+      val originBloopWindowsBinaryDll = baseDir / "etc" / "vcruntime140.dll"
+      val targetBloopWindowsBinaryDll = releaseTargetDir / "vcruntime140.dll"
+      IO.copyFile(originBloopWindowsBinaryDll, targetBloopWindowsBinaryDll)
+      val coursierJson = ReleaseUtils.bloopCoursierJson.value
+      List(
+        coursierJson,
+        targetBashCompletions,
+        targetZshCompletions,
+        targetFishCompletions,
+        targetBloopLinuxBinary,
+        targetBloopMacosBinary,
+        targetBloopWindowsBinary,
+        targetBloopWindowsBinaryDll
+      )
+    },
     createLocalHomebrewFormula := ReleaseUtils.createLocalHomebrewFormula.value,
     createLocalScoopFormula := ReleaseUtils.createLocalScoopFormula.value,
     createLocalArchPackage := ReleaseUtils.createLocalArchPackage.value,
@@ -526,11 +565,7 @@ object BuildImplementation {
         BuildKeys.fetchGradleApi := {
           val logger = Keys.streams.value.log
           val targetDir = (Keys.baseDirectory in Compile).value / "lib"
-          if (!System.getProperty("java.specification.version").startsWith("1.")) ()
-          else {
-            // TODO: we may want to fetch it to a custom unmanaged lib directory under build
-            GradleIntegration.fetchGradleApi(Dependencies.gradleVersion, targetDir, logger)
-          }
+          GradleIntegration.fetchGradleApi(Dependencies.gradleVersion, targetDir, logger)
         },
         // Only generate for tests (they are not published and can contain user-dependent data)
         BuildInfoKeys.buildInfo in Compile := Nil,
@@ -542,6 +577,7 @@ object BuildImplementation {
     val frontendTestBuildSettings: Seq[Def.Setting[_]] = {
       sbtbuildinfo.BuildInfoPlugin.buildInfoScopedSettings(Test) ++ List(
         BuildKeys.bloopCoursierJson := ReleaseUtils.bloopCoursierJson.value,
+        BuildKeys.bloopLocalCoursierJson := ReleaseUtils.bloopLocalCoursierJson.value,
         BuildInfoKeys.buildInfoKeys in Test := {
           import sbtbuildinfo.BuildInfoKey
           val junitTestJars = BuildInfoKey.map(Keys.externalDependencyClasspath in Test) {

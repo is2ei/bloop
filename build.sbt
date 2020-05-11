@@ -352,7 +352,10 @@ def shadeSettingsForModule(moduleId: String, module: Reference) = List(
     // Coursier direct and transitive deps
     "coursier",
     "shapeless",
-    "argonaut"
+    "argonaut",
+    "io.github.alexarchambault.windowsansi",
+    "org.fusesource.hawtjni",
+    "org.fusesource.jansi"
   )
 )
 
@@ -509,7 +512,10 @@ def shadeSbtSettingsForModule(
       "com.google.errorprone",
       "org.codehaus",
       "ch.epfl.scala.bsp4j",
-      "org.eclipse"
+      "org.eclipse",
+      "io.github.alexarchambault.windowsansi",
+      "org.fusesource.hawtjni",
+      "org.fusesource.jansi"
     )
   )
 }
@@ -586,6 +592,7 @@ lazy val gradleBloop211 = project
   .settings(BuildInfoPlugin.buildInfoScopedSettings(Test))
   .settings(scalaVersion := Keys.scalaVersion.in(jsonConfig211).value)
   .settings(
+    libraryDependencies += Dependencies.classgraph,
     target := (file("integrations") / "gradle-bloop" / "target" / "gradle-bloop-2.11").getAbsoluteFile
   )
   .settings(
@@ -610,6 +617,7 @@ lazy val gradleBloop212 = project
     target := (file("integrations") / "gradle-bloop" / "target" / "gradle-bloop-2.12").getAbsoluteFile
   )
   .settings(
+    libraryDependencies += Dependencies.classgraph,
     publishLocal := publishLocal.dependsOn(publishLocal.in(jsonConfig212)).value
   )
 
